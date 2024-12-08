@@ -1,29 +1,73 @@
 <%- include('includes/header') %>
   
-  <div class="container py-md-5 container--narrow">
-    <%- include('includes/flash') %>
+<div class="container py-md-5 container--narrow">
+  <%- include('includes/flash') %>
 
-    <div class="d-flex justify-content-between">
-      <h2><%= post.title %></h2>
-      <% if(post.isVisitorOwner) { %>
-        <span class="pt-2">
-          <a href="/post/<%= post._id %>/edit" class="text-primary mr-2" data-toggle="tooltip" data-placement="top" title="Edit"><i class="fas fa-edit"></i></a>
-          <form class="delete-post-form d-inline" action="/post/<%= post._id %>/delete" method="POST">
-            <button class="delete-post-button text-danger" data-toggle="tooltip" data-placement="top" title="Delete"><i class="fas fa-trash"></i></button>
-          </form>
-        </span>
+  <div class="d-flex justify-content-between">
+    <h2><%= post.speciesName %></h2>
+    <% if(post.isVisitorOwner) { %>
+      <span class="pt-2">
+        <a href="/post/<%= post._id %>/edit" class="text-primary mr-2" data-toggle="tooltip" data-placement="top" title="Edit"><i class="fas fa-edit"></i></a>
+        <form class="delete-post-form d-inline" action="/post/<%= post._id %>/delete" method="POST">
+          <button class="delete-post-button text-danger" data-toggle="tooltip" data-placement="top" title="Delete"><i class="fas fa-trash"></i></button>
+        </form>
+      </span>
+    <% } %>
+  </div>
+    
+  <div class="body-content">
+    <div class="plant-details">
+      <p><strong>Date Planted:</strong> <%= post.datePlanted.getMonth() + 1 %>/<%= post.datePlanted.getDate() %>/<%= post.datePlanted.getFullYear() %></p>
+      <p><strong>Days Since Sprouting:</strong> <%= post.daysSinceSprouting %></p>
+
+      <% 
+      // Find the plant details from the JSON data
+      const plantDetails = plantCareData.find(plant => 
+        plant['Plant Name'].trim().toLowerCase() === post.speciesName.trim().toLowerCase()
+      );
+      
+      if (plantDetails) { %>
+        <div class="card mt-4">
+          <div class="card-header">
+            <h3>Plant Care Details</h3>
+          </div>
+          <div class="card-body">
+            <% 
+            const detailsToDisplay = [
+              'Light Preferences',
+              'Watering',
+              'Soil Type/Drainage',
+              'Temp / Humidity',
+              'Height Growth',
+              'Common Problems',
+              'Propagation',
+              'Toxicity'
+            ];
+
+            detailsToDisplay.forEach(key => { 
+              // Try multiple variations of the key
+              const value = 
+                plantDetails[key] || 
+                plantDetails[key.trim()] || 
+                plantDetails[key + ' '] || 
+                plantDetails[' ' + key];
+              
+              if (value !== undefined && value !== null) { %>
+                <div class="row mb-2">
+                  <div class="col-md-4"><strong><%= key.replace(/\//, ' ').trim() %>:</strong></div>
+                  <div class="col-md-8"><%= value %></div>
+                </div>
+            <% } 
+            }) %>
+          </div>
+        </div>
+      <% } else { %>
+        <div class="alert alert-warning mt-4">
+          No additional care details found for this plant species.
+        </div>
       <% } %>
     </div>
-      
-    <p class="text-muted small mb-4">
-      <a href="#"><img class="avatar-tiny" src="<%= post.author.avatar%>"></a>
-      Posted by <a href="#"><%= post.author.username %></a> on <%= post.createdDate.getMonth() + 1 %>/<%= post.createdDate.getDate() %>/<%= post.createdDate.getFullYear() %></p>
-
-    <div class="body-content">
-      <%- filterUserHTML(post.body) %>  
-    </div>
-
   </div>
-  
+</div>
   
 <%- include('includes/footer') %>

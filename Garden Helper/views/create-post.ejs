@@ -1,25 +1,74 @@
 <%- include('includes/header') %>
-  
-  <div class="container py-md-5 container--narrow">
+<div class="container py-md-5 container--narrow">
     <%- include('includes/flash') %>
-
     <form action="/create-post" method="POST">
-      <div class="form-group">
-        <label for="post-title" class="text-muted mb-1"><small>Plant name</small></label>
-        <input required name="title" id="post-title" class="form-control form-control-lg form-control-title" type="text" placeholder="" autocomplete="off">
-      </div>
-
-      <div class="form-group">
-        <label for="post-body" class="text-muted mb-1"><small>Name/Species</small></label>
-        <textarea required name="body" id="post-body" class="plant-detail" type="text"></textarea>
-        <label for="post-body" class="text-muted mb-1"><small>Date planted</small></label>
-        <textarea required name="body" id="post-body" class="plant-detail" type="text"></textarea>
-        <label for="post-body" class="text-muted mb-1"><small>Days since sprouting</small></label>
-        <textarea required name="body" id="post-body" class="plant-detail" type="text"></textarea>
-      </div>
-      
-      <button class="add-plant">Save Plant</button>
+        <div class="form-group">
+            <label for="speciesName" class="text-muted mb-1"><small>Species Name</small></label>
+            <input required name="speciesName" id="speciesName" class="form-control" type="text" autocomplete="off">
+            <div id="species-suggestions" class="list-group position-absolute"></div>
+            
+            <label for="datePlanted" class="text-muted mb-1"><small>Date Planted</small></label>
+            <input required name="datePlanted" id="datePlanted" class="form-control" type="date">
+        </div>
+        <button class="btn btn-primary add-plant">Save Plant</button>
     </form>
-  </div>
-  
-  <%- include('includes/footer') %>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const speciesInput = document.getElementById('speciesName');
+    const suggestionsContainer = document.getElementById('species-suggestions');
+
+    fetch('/plant_care.json')
+        .then(response => response.json())
+        .then(data => {
+            const plantNames = data.map(item => item['Plant Name']);
+
+            speciesInput.addEventListener('input', function() {
+                const inputValue = this.value.toLowerCase();
+                const filteredNames = plantNames.filter(name => 
+                    name.toLowerCase().includes(inputValue)
+                );
+
+                // Clear previous suggestions
+                suggestionsContainer.innerHTML = '';
+
+                // Show suggestions if input is not empty
+                if (inputValue && filteredNames.length) {
+                    filteredNames.slice(0, 5).forEach(name => {
+                        const suggestionItem = document.createElement('div');
+                        suggestionItem.classList.add('list-group-item', 'list-group-item-action');
+                        suggestionItem.textContent = name;
+                        suggestionItem.addEventListener('click', function() {
+                            speciesInput.value = name;
+                            suggestionsContainer.innerHTML = '';
+                        });
+                        suggestionsContainer.appendChild(suggestionItem);
+                    });
+                }
+            });
+        })
+        .catch(error => console.error('Error loading plant species:', error));
+
+    // Optional: Close suggestions when clicking outside
+    document.addEventListener('click', function(e) {
+        if (e.target !== speciesInput && e.target !== suggestionsContainer) {
+            suggestionsContainer.innerHTML = '';
+        }
+    });
+});
+</script>
+
+<style>
+#species-suggestions {
+    z-index: 1000;
+    max-height: 200px;
+    overflow-y: auto;
+    width: 100%;
+}
+.list-group-item-action:hover {
+    background-color: #f8f9fa;
+    cursor: pointer;
+}
+</style>
+<%- include('includes/footer') %>

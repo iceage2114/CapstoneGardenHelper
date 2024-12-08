@@ -1,10 +1,7 @@
 const { promiseImpl } = require('ejs')
-const { post } = require('../router')
-
 const postsCollection = require('../db').db().collection("posts")
 const ObjectId = require('mongodb').ObjectId
 const User = require('./User')
-
 const sanitizeHTML = require('sanitize-html')
 
 let Post = function(data, userid, requestedPostId) {
@@ -23,7 +20,7 @@ Post.prototype.create = function() {
             postsCollection.insertOne(this.data).then((info) => {
                 resolve(info.insertedId)
             }).catch(() => {
-                this.errors.push("try again")
+                this.errors.push("Error creating plant entry")
                 reject(this.errors)
             })
         } else {
@@ -35,15 +32,11 @@ Post.prototype.create = function() {
 Post.prototype.update = function() {
     let promise = new Promise(async (resolve, reject) => {
         try {
-            //console.log("1")
             let post = await Post.findSingleById(this.requestedPostId, this.userid)
-            //console.log("2")
             if(post.isVisitorOwner) {
-                //console.log("3")
                 let status = await this.actuallyUpdate()
                 resolve(status)
             } else {
-                //console.log("4")
                 reject()
             }
         } catch {
@@ -58,7 +51,14 @@ Post.prototype.actuallyUpdate = function() {
         this.cleanUp()
         this.validate()
         if(!this.errors.length) {
-            await postsCollection.findOneAndUpdate({_id: new ObjectId(this.requestedPostId)}, {$set: {title: this.data.title, body: this.data.body}})
+            await postsCollection.findOneAndUpdate(
+                {_id: new ObjectId(this.requestedPostId)}, 
+                {$set: {
+                    speciesName: this.data.speciesName,
+                    datePlanted: this.data.datePlanted,
+                    daysSinceSprouting: this.data.daysSinceSprouting
+                }}
+            )
             resolve("success")
         } else {
             resolve("failure")
@@ -67,37 +67,48 @@ Post.prototype.actuallyUpdate = function() {
 }
 
 Post.prototype.cleanUp = function() {
-    if(typeof(this.data.title) != "string") {
-        this.data.title = ""
-    }
-    if(typeof(this.data.body) != "string") {
-        this.data.body = ""
+    // Ensure data is an object
+    if (typeof this.data !== 'object' || this.data === null) {
+        this.data = {}
     }
 
+    // Safe trimming and parsing
     this.data = {
-        title: sanitizeHTML(this.data.title.trim(), {allowedTags: [], allowedAttributes: []}),
-        body: sanitizeHTML(this.data.body.trim(), {allowedTags: [], allowedAttributes: []}),
+        speciesName: typeof this.data.speciesName === 'string' ? 
+            sanitizeHTML(this.data.speciesName.trim(), {allowedTags: [], allowedAttributes: []}) : 
+            '',
+        datePlanted: this.data.datePlanted ? new Date(this.data.datePlanted) : new Date(),
+        daysSinceSprouting: this.data.daysSinceSprouting ? 
+            parseInt(this.data.daysSinceSprouting) || 0 : 
+            0,
         createdDate: new Date(),
         author: new ObjectId(this.userid)
     }
 }
 
 Post.prototype.validate = function() {
-    if (this.data.title == "") {
-        this.errors.push("provide title")
+    // Validation rules for plant entry
+    if (!this.data.speciesName || this.data.speciesName.trim() === "") {
+        this.errors.push("Please provide a species name")
     }
-    if (this.data.body == "") {
-        this.errors.push("provide body")
+
+    if (!this.data.datePlanted) {
+        this.errors.push("Please provide the date planted")
+    }
+
+    if (isNaN(this.data.daysSinceSprouting) || this.data.daysSinceSprouting < 0) {
+        this.errors.push("Days since sprouting must be a non-negative number")
     }
 }
 
 Post.reusablePostQuery = function(uniqueOperations, visitorId, finalOperations = []) {
-    let promise =  new Promise(async function(resolve, reject) {
+    let promise = new Promise(async function(resolve, reject) {
         let aggOperations = uniqueOperations.concat([
             {$lookup: {from: "users", localField: "author", foreignField: "_id", as: "authorDocument"}},
             {$project: {
-                title: 1,
-                body: 1,
+                speciesName: 1,
+                datePlanted: 1,
+                daysSinceSprouting: 1,
                 createdDate: 1,
                 authorId: "$author",
                 author: {$arrayElemAt: ["$authorDocument", 0]},
@@ -105,11 +116,8 @@ Post.reusablePostQuery = function(uniqueOperations, visitorId, finalOperations =
         ]).concat(finalOperations)
 
         let posts = await postsCollection.aggregate(aggOperations).toArray()
-        //console.log(aggOperations)
-        //console.log(posts)
         posts = posts.map(function(post) {
             post.isVisitorOwner = post.authorId.equals(visitorId)
-            //console.log(`post.isVisitorOwner =  ${post.isVisitorOwner}`)
             post.author = {
                 username: post.author.username,
                 avatar: new User(post.author, true).avatar
@@ -122,7 +130,7 @@ Post.reusablePostQuery = function(uniqueOperations, visitorId, finalOperations =
 }
 
 Post.findSingleById = function(id, visitorId) {
-    let promise =  new Promise(async function(resolve, reject) {
+    let promise = new Promise(async function(resolve, reject) {
         if(typeof(id) != "string" || !ObjectId.isValid(id)) {
             reject()
             return
@@ -133,23 +141,20 @@ Post.findSingleById = function(id, visitorId) {
         ], visitorId)
 
         if(posts.length) {
-            //console.log(posts[0])
             resolve(posts[0])
         } else {
             reject()
         }
-        
     })
 
     return promise
 }
 
-Post.findByAuthorId = function(authorId) {
+Post.findByAuthorId = function(authorId, visitorId) {
     return Post.reusablePostQuery([
         {$match: {author: authorId}},
-        {$sort: {createdDate: -1}}//-1 for descending order
-    ])
-
+        {$sort: {createdDate: -1}}
+    ], visitorId)
 }
 
 Post.delete = function(postIdToDelete, currentUserId) {
@@ -170,12 +175,14 @@ Post.delete = function(postIdToDelete, currentUserId) {
 }
 
 Post.search = function(searchTerm) {
-    console.log(searchTerm)
     return new Promise(async(resolve, reject) => {
         if(typeof(searchTerm) == "string") {
             let posts = await Post.reusablePostQuery([
-                {$match: {$text: {$search: searchTerm}}}
-            ], undefined, [{$sort: {score: {$meta: "textScore"}}}])
+                {$match: {$or: [
+                    {speciesName: {$regex: searchTerm, $options: 'i'}},
+                    {daysSinceSprouting: isNaN(searchTerm) ? null : parseInt(searchTerm)}
+                ]}}
+            ], undefined)
             resolve(posts)
         } else {
             reject()

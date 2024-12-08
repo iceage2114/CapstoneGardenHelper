@@ -1,6 +1,8 @@
 const User = require('../models/User')
 const Post = require('../models/Post')
 const jwt = require('jsonwebtoken')
+const ObjectId = require('mongodb').ObjectId
+
 
 
 exports.mustBeLoggedIn = function(req, res, next) {
@@ -80,7 +82,17 @@ exports.register = function(req, res) {
 
 exports.home = function(req, res) {
     if(req.session.user) {
-        res.render('home-dashboard')
+        Post.findByAuthorId(new ObjectId(req.session.user._id), req.session.user._id).then(function(posts) {
+            console.log("Fetched posts:", posts); // Add this line
+            res.render('home-dashboard', { 
+                posts: posts 
+            })
+        }).catch(function(error) {
+            console.error("Error fetching posts:", error);
+            res.render('home-dashboard', { 
+                posts: [] 
+            })
+        })
     } else {
         res.render('home-guest', {regErrors: req.flash('regErrors')})
     }
@@ -97,16 +109,21 @@ exports.ifUserExists = function(req, res, next) {
 
 exports.profilePostsScreen = function(req, res) {
     
-    Post.findByAuthorId(req.profileUser._id).then(function(posts) {
-
-        res.render('profile', {
-            posts: posts,
-            profileUsername: req.profileUser.username,
-            profileAvatar:req.profileUser.avatar
+    if(req.session.user) {
+        Post.findByAuthorId(new ObjectId(req.session.user._id), req.session.user._id).then(function(posts) {
+            console.log("Fetched posts:", posts); // Add this line
+            res.render('home-dashboard', { 
+                posts: posts 
+            })
+        }).catch(function(error) {
+            console.error("Error fetching posts:", error);
+            res.render('home-dashboard', { 
+                posts: [] 
+            })
         })
-    }).catch(function() {
-        res.render('404')
-    })
+    } else {
+        res.render('home-guest', {regErrors: req.flash('regErrors')})
+    }
 
     
 }

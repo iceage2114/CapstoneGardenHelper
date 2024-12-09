@@ -1,20 +1,20 @@
 <%- include('includes/header') %>
-
 <div class="container py-md-5 container--narrow">
     <%- include('includes/flash') %>
-
     <div class="text-center">
         <% if (posts && posts.length > 0) { %>
             <div class="row">
                 <% posts.forEach(function(post) { %>
                     <div class="col-md-4 mb-4">
-                        <div class="card">
-                            <div class="card-body">
-                                <h5 class="card-title"><%= post.speciesName %></h5>
+                        <div class="card h-100">
+                            <div class="card-body d-flex flex-column">
+                                <h5 class="card-title text-truncate" style="max-width: 100%; overflow: hidden;">
+                                    <%= post.speciesName.length > 25 ? post.speciesName.substring(0, 25) + '...' : post.speciesName %>
+                                </h5>
                                 <p class="card-text">
                                     <strong>Date Planted:</strong> <%= post.datePlanted.toLocaleDateString() %><br>
                                 </p>
-                                <a href="/post/<%= post._id %>" class="btn btn-primary">View Details</a>
+                                <a href="/post/<%= post._id %>" class="btn btn-primary mt-auto">View Details</a>
                             </div>
                         </div>
                     </div>
@@ -25,5 +25,4 @@
         <% } %>
     </div>  
 </div>
-
 <%- include('includes/footer') %>
